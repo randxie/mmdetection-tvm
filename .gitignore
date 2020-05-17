@@ -1,0 +1,46 @@
+.DS_Store
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Compiled python modules.
+*.pyc
+
+# jupyter 
+.ipynb_checkpoints/
+
+# Setuptools distribution folder.
+dist
+
+# Python egg metadata, regenerated from source files by setuptools.
+*.egg-info
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# Typescript v1 declaration files
+typings/
+
+# dotenv environment variables file
+*.env
+
+# pytest cache
+.pytest_cache
+__pycache__/
+
+# Editor related file
+*.idea
+*.vscode
+
