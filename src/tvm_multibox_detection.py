@@ -3,6 +3,7 @@ import os
 import torch
 from mmdet.apis import inference_detector
 from mmdet.apis import init_detector
+from mmdet.apis import show_result_pyplot
 
 from modules.traceable_ssd_module import TraceableSsdModule
 from utils import ROOT_DIR
@@ -42,7 +43,12 @@ ml_cls_probs, ml_loc_preds, ml_anchors = traceable_ssd_model.convert_multi_level
 outputs = traceable_ssd_model.run_tvm_multibox_detection(ml_cls_probs, ml_loc_preds, ml_anchors)
 
 # extract valid detections
+# [label, probability, x0, y0, x1, y1]
 outputs = outputs[:, outputs[0, :, 1] > 0, :]
 
-# [label, probability, x0, y0, x1, y1]
-print(outputs)
+# use mmdetection utils to validate plots.
+results = [[] for _ in range(80)]
+outputs = outputs[0, :, :]
+for idx in range(outputs.shape[0]):
+  results[int(outputs[idx, 0])].append(outputs[idx, 1:])
+show_result_pyplot(mmdet_model, TEST_IMAGE_FILE, result)
