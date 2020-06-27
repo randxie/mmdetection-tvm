@@ -145,8 +145,11 @@ class TraceableSsdModule(torch.nn.Module):
     # ------------------------------------
     # transform to TVM format
     # ------------------------------------
-    # mmdet assumes background class to be the rightmost index while tvm assume it is in the first index
-    # TODO(randxie): figure out how to do it in Relay, as index_select has not been supported.
+    # mmdet assumes background class to be the rightmost index while tvm assume it is in the first index.
+    # We will need to roll the cls_score in dimension 1. However, TVM does not support torch.roll yet, will use
+    # split to get the same result.
+    cls_score_main, cls_score_bg = torch.split(cls_score, [self.NUM_CLASSES, 1], dim=1)
+    cls_score = torch.cat((cls_score_bg, cls_score_main), dim=1)
 
     # expected format in TVM:
     # cls_score: [batch, num_classes, num_anchors]

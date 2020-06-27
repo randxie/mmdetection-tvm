@@ -75,9 +75,6 @@ m.set_input(**params)
 m.run()
 tvm_output = m.get_output(0)
 
-with torch.no_grad():
-  torch_output = scripted_ssd_model(random_input)
-
 assert m.get_num_outputs() == len(torch_output), "Torch output should have the same shape as tvm output."
 assert np.all(np.isclose(torch_output[0].detach().numpy(), tvm_output.asnumpy(),
                          atol=1e-5)), "Torch output should be numerically close to tvm output."
@@ -96,10 +93,6 @@ for i in range(m.get_num_outputs()):
   tvm_outputs.append(torch.from_numpy(m.get_output(i).asnumpy()))
 
 ml_cls_probs, ml_loc_preds, ml_anchors = tvm_outputs
-
-# mmdet assumes background class to be the rightmost index while tvm assume it is in the first index
-ml_cls_probs = torch.roll(ml_cls_probs, 1, 1)
-
 ml_cls_probs = ml_cls_probs.cpu().numpy()
 ml_loc_preds = ml_loc_preds.cpu().numpy()
 ml_anchors = ml_anchors.cpu().numpy()
