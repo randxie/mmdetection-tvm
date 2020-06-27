@@ -9,11 +9,30 @@ from mmdet.datasets.pipelines import Compose
 
 import topi.testing
 import tvm
+from custom_ops.load_custom_ops import load_custom_ops
+from tvm import relay
 from tvm import te
 
 _multibox_detection_implement = {
   "generic": (topi.vision.ssd.multibox_detection, topi.generic.schedule_multibox_detection),
 }
+
+
+def convert_multibox_detect():
+  def _impl(inputs, input_types):
+    ml_cls_score = inputs[0]
+    ml_bbox_pred = inputs[1]
+    ml_anchors = inputs[2]
+    inter_out = relay.op.vision.multibox_transform_loc(ml_cls_score, ml_bbox_pred, ml_anchors, threshold=0.02,
+                                                       clip=False)
+    out = relay.op.vision.non_max_suppression(inter_out[0], inter_out[1], inter_out[1], top_k=200, iou_threshold=0.45,
+                                              return_indices=False)
+    return out
+
+  return _impl
+
+
+SSD_CUSTOM_MAP = {'custom_ops::dummy_multibox_detect': convert_multibox_detect()}
 
 
 class TraceableSsdModule(torch.nn.Module):
@@ -24,6 +43,7 @@ class TraceableSsdModule(torch.nn.Module):
 
   def __init__(self, backbone, bbox_head, cfg):
     super(TraceableSsdModule, self).__init__()
+    load_custom_ops()
     self.backbone = backbone
     self.bbox_head = bbox_head
     self.anchors = None  # to be created
@@ -53,7 +73,8 @@ class TraceableSsdModule(torch.nn.Module):
     ml_cls_score, ml_bbox_pred, ml_anchors = self.convert_multi_level_output_to_tvm_format(cls_scores,
                                                                                            bbox_preds,
                                                                                            anchors)
-    return ml_cls_score, ml_bbox_pred, ml_anchors
+    output = torch.ops.custom_ops.dummy_multibox_detect(ml_cls_score, ml_bbox_pred, ml_anchors)
+    return output
 
   def postprocess(self, output_tuple, ori_img_shape):
     """Convert tvm output tuple to bounding box predictions.
