@@ -1,18 +1,21 @@
 import os
-import tvm
+
+import numpy as np
 import onnx
 from PIL import Image
-import numpy as np
-import tvm.relay as relay
-import tvm.contrib.graph_runtime as runtime
 from utils import ROOT_DIR
+
+import tvm
+import tvm.contrib.graph_runtime as runtime
+import tvm.relay as relay
 
 # Preprocess image
 # TODO: not sure normalizing the image is necessary or not for ssd, to be
 # verified
 img_path = os.path.join(ROOT_DIR, 'test_images/demo.jpg')
 img = Image.open(img_path).resize((300, 300))
-x = np.array(img).reshape(1, -1, 300, 300).astype(np.float32)  # cryptic error msg when type is to set, see issue https://github.com/randxie/mmdetection-tvm/issues/2
+x = np.array(img).reshape(1, -1, 300, 300).astype(
+  np.float32)  # cryptic error msg when type is to set, see issue https://github.com/randxie/mmdetection-tvm/issues/2
 
 # Load model
 # Sample command to create the onnx model from mmdetection (NOTE: --shape 300
@@ -33,7 +36,7 @@ ctx = tvm.context(target)
 mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with relay.build_config(opt_level=1):
-    graph, lib, params = relay.build(mod, target, params=params)
+  graph, lib, params = relay.build(mod, target, params=params)
 
 module = runtime.create(graph, lib, ctx)
 
