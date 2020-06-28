@@ -114,7 +114,7 @@ class TraceableSsdModule(torch.nn.Module):
   def create_anchors(self, x):
     """Create anchors by analyzing the shape of bbox_head outputs.
 
-    :param x: input image
+    :param x: input tensor
     :return:
     """
     x = self.backbone(x)

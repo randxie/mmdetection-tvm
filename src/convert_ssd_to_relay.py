@@ -51,8 +51,8 @@ scripted_ssd_model = torch.jit.trace_module(traceable_ssd_model, {"forward": ran
 # ---------------------------------------------
 input_name = 'input0'
 shape_list = [(input_name, (1, 3, 300, 300))]
-ssd_module, params = relay.frontend.from_pytorch(scripted_ssd_model,
-                                                 shape_list, custom_convert_map=SSD_CUSTOM_MAP)
+ssd_module, ssd_params = relay.frontend.from_pytorch(scripted_ssd_model,
+                                                     shape_list, custom_convert_map=SSD_CUSTOM_MAP)
 
 with torch.no_grad():
   torch_output = scripted_ssd_model(random_input)
@@ -60,18 +60,24 @@ with torch.no_grad():
 # ---------------------------------------------
 # Build relay graph
 # ---------------------------------------------
-backend_target = 'cuda'  # or 'llvm'
-hardware_model = '1080ti'  # for Jetson, set it to "tx2"
-target = tvm.target.create('%s -model=%s' % (backend_target, hardware_model))
-ctx = tvm.cpu(0)
+
+# use cuda if needed
+# backend_target = 'llvm'  # or 'llvm'
+# hardware_model = '1080'  # for Jetson, set it to "tx2"
+# target = tvm.target.create('%s -model=%s' % (backend_target, hardware_model))
+
+target = 'llvm'
+
 with relay.build_config(opt_level=3):
+  ssd_module, ssd_params = relay.optimize(ssd_module, target=target, params=ssd_params)
   graph, lib, params = relay.build(ssd_module,
                                    target=target,
-                                   params=params)
+                                   target_host='llvm',
+                                   params=ssd_params)
 
 # export weights
 if export_weight:
-  export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.tar")
+  export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.so")
   export_graph = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_graph.json")
   export_params = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_param.params")
   lib.export_library(export_lib)
@@ -83,6 +89,8 @@ if export_weight:
 # ------------------------------------------------------
 # Build relay graph and compare result with traced model
 # ------------------------------------------------------
+ctx = tvm.cpu(0)
+
 # execute graph using tvm runtime.
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input(input_name, tvm.nd.array(random_input.numpy()))
