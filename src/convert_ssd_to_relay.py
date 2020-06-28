@@ -11,6 +11,7 @@ from modules.traceable_ssd_module import SSD_CUSTOM_MAP
 from modules.traceable_ssd_module import TraceableSsdModule
 from tvm import relay
 from tvm.contrib import graph_runtime
+from utils import DEPLOY_WEIGHT_DIR
 from utils import ROOT_DIR
 
 CONFIG_FILE = os.path.join(ROOT_DIR, 'configs/ssd300_coco.py')
@@ -22,6 +23,7 @@ CHECKPOINT_FILE = os.path.join(ROOT_DIR, 'checkpoints/ssd300_coco_20200307-a92d2
 TEST_IMAGE_FILE = os.path.join(ROOT_DIR, 'test_images/demo.jpg')
 
 visualize = True
+export_weight = True
 
 # ---------------------------------------------
 # Load mmdetection model
@@ -58,14 +60,25 @@ with torch.no_grad():
 # ---------------------------------------------
 # Build relay graph
 # ---------------------------------------------
-target = 'llvm'
-target_host = 'llvm'
+backend_target = 'cuda'  # or 'llvm'
+hardware_model = '1080ti'  # for Jetson, set it to "tx2"
+target = tvm.target.create('%s -model=%s' % (backend_target, hardware_model))
 ctx = tvm.cpu(0)
 with relay.build_config(opt_level=3):
   graph, lib, params = relay.build(ssd_module,
                                    target=target,
-                                   target_host=target_host,
                                    params=params)
+
+# export weights
+if export_weight:
+  export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.tar")
+  export_graph = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_graph.json")
+  export_params = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_param.params")
+  lib.export_library(export_lib)
+  with open(export_graph, "w") as fo:
+    fo.write(graph)
+  with open(export_params, "wb") as fo:
+    fo.write(relay.save_param_dict(params))
 
 # ------------------------------------------------------
 # Build relay graph and compare result with traced model
@@ -78,6 +91,7 @@ m.run()
 tvm_output = m.get_output(0)
 
 """
+# disable check because we have a custom dummy operator to facilitate conversion.
 assert m.get_num_outputs() == len(torch_output), "Torch output should have the same shape as tvm output."
 assert np.all(np.isclose(torch_output[0].detach().numpy(), tvm_output.asnumpy(),
                          atol=1e-5)), "Torch output should be numerically close to tvm output."
