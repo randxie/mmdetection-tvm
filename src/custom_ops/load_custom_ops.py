@@ -2,7 +2,7 @@ import os
 
 from torch.utils import cpp_extension
 
-from utils import ROOT_DIR
+from constants import ROOT_DIR
 
 
 def load_custom_ops():

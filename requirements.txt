@@ -1,2 +1,4 @@
 numpy
 onnx
+xgboost
+tornado
