@@ -3,11 +3,11 @@ import os
 import numpy as np
 import onnx
 from PIL import Image
-from utils import ROOT_DIR
 
 import tvm
 import tvm.contrib.graph_runtime as runtime
 import tvm.relay as relay
+from constants import ROOT_DIR
 
 # Preprocess image
 # TODO: not sure normalizing the image is necessary or not for ssd, to be
@@ -15,13 +15,14 @@ import tvm.relay as relay
 img_path = os.path.join(ROOT_DIR, 'test_images/demo.jpg')
 img = Image.open(img_path).resize((300, 300))
 x = np.array(img).reshape(1, -1, 300, 300).astype(
-  np.float32)  # cryptic error msg when type is to set, see issue https://github.com/randxie/mmdetection-tvm/issues/2
+  np.float32
+)  # cryptic error msg when type is to set, see issue https://github.com/randxie/mmdetection-tvm/issues/2
 
 # Load model
 # Sample command to create the onnx model from mmdetection (NOTE: --shape 300
 # is an important flag although it is said optional in mmdetection doc):
-# python ~/mmedetection/tools/pytorch2onnx.py configs/ssd/ssd300_coco.py 
-# checkpoints/ssd300_coco_20200307-a92d2092.pth 
+# python ~/mmedetection/tools/pytorch2onnx.py configs/ssd/ssd300_coco.py
+# checkpoints/ssd300_coco_20200307-a92d2092.pth
 # --out ~/mmdetection-tvm/onnx/ssd300_coco.onnx --shape 300
 model_path = os.path.join(ROOT_DIR, 'onnx/ssd300_coco.onnx')
 onnx_model = onnx.load(model_path)

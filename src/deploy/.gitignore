@@ -1,0 +1,4 @@
+build
+
+# ignore binaries
+run_ssd

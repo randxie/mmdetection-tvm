@@ -8,17 +8,19 @@ from mmdet.apis import show_result_pyplot
 
 import tvm
 from tvm import rpc
+from constants import DEPLOY_WEIGHT_DIR
+from constants import ROOT_DIR
+
 from modules.traceable_ssd_module import SSD_CUSTOM_MAP
 from modules.traceable_ssd_module import TraceableSsdModule
 from tvm import relay
 from tvm.contrib import graph_runtime
-from utils import DEPLOY_WEIGHT_DIR
-from utils import ROOT_DIR
 
 CONFIG_FILE = os.path.join(ROOT_DIR, 'configs/ssd300_coco.py')
 
 # download the checkpoint from model zoo and put it in `checkpoints/`
-CHECKPOINT_FILE = os.path.join(ROOT_DIR, 'checkpoints/ssd300_coco_20200307-a92d2092.pth')
+CHECKPOINT_FILE = os.path.join(
+  ROOT_DIR, 'checkpoints/ssd300_coco_20200307-a92d2092.pth')
 
 # test image
 TEST_IMAGE_FILE = os.path.join(ROOT_DIR, 'test_images/demo.jpg')
@@ -43,21 +45,24 @@ if visualize:
 # ---------------------------------------------
 # Create traceable model from mmdetection model
 # ---------------------------------------------
-traceable_ssd_model = TraceableSsdModule(mmdet_model.backbone, mmdet_model.bbox_head, mmdet_model.cfg)
+traceable_ssd_model = TraceableSsdModule(mmdet_model.backbone,
+                                         mmdet_model.bbox_head,
+                                         mmdet_model.cfg)
 
 # trace pytorch modules.
 input_shape = [1, 3, 300, 300]
 random_input = torch.randn(input_shape, dtype=torch.float32)
 traceable_ssd_model.anchors = traceable_ssd_model.create_anchors(random_input)
-scripted_ssd_model = torch.jit.trace_module(traceable_ssd_model, {"forward": random_input})
+scripted_ssd_model = torch.jit.trace_module(traceable_ssd_model,
+                                            {"forward": random_input})
 
 # ---------------------------------------------
 # Convert traced SSD model to TVM relay IR
 # ---------------------------------------------
 input_name = 'input0'
 shape_list = [(input_name, (1, 3, 300, 300))]
-ssd_module, params = relay.frontend.from_pytorch(scripted_ssd_model,
-                                                 shape_list, custom_convert_map=SSD_CUSTOM_MAP)
+ssd_module, ssd_params = relay.frontend.from_pytorch(
+  scripted_ssd_model, shape_list, custom_convert_map=SSD_CUSTOM_MAP)
 
 with torch.no_grad():
   torch_output = scripted_ssd_model(random_input)
@@ -78,13 +83,19 @@ else:
   ctx = tvm.cpu(0)
 
 with relay.build_config(opt_level=3):
+  ssd_module, ssd_params = relay.optimize(ssd_module,
+                                          target=target,
+                                          params=ssd_params)
   graph, lib, params = relay.build(ssd_module,
                                    target=target,
-                                   params=params)
+                                   # target_host='llvm',
+                                   params=ssd_params)
 
 # export weights
 if export_weight:
-  export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.tar")
+  # store IR representation.
+  export_ssd_module = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_module.json")
+  export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.so")
   export_graph = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_graph.json")
   export_params = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_param.params")
   lib.export_library(export_lib)
@@ -92,6 +103,8 @@ if export_weight:
     fo.write(graph)
   with open(export_params, "wb") as fo:
     fo.write(relay.save_param_dict(params))
+  with open(export_ssd_module, "w") as fo:
+    fo.write(tvm.ir.save_json(ssd_module))
 
 if deploy_remote:
     # The following is my environment, change this to the IP address of your target device
@@ -110,13 +123,14 @@ if deploy_remote:
 # ------------------------------------------------------
 # Build relay graph and compare result with traced model
 # ------------------------------------------------------
+ctx = tvm.cpu(0)
+
 # execute graph using tvm runtime.
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input(input_name, tvm.nd.array(random_input.numpy()))
 m.set_input(**params)
 m.run()
 tvm_output = m.get_output(0)
-
 """
 # disable check because we have a custom dummy operator to facilitate conversion.
 assert m.get_num_outputs() == len(torch_output), "Torch output should have the same shape as tvm output."
@@ -157,6 +171,7 @@ outputs[:, 5] = outputs[:, 5] / scale_factor[3]
 for idx in range(outputs.shape[0]):
   tmp = results[int(outputs[idx, 0])]
   # mmdetection assumes the probability is the last dimension
-  results[int(outputs[idx, 0])] = np.vstack((tmp, torch.roll(outputs[[idx], 1:], -1, 1)))
+  results[int(outputs[idx, 0])] = np.vstack(
+    (tmp, torch.roll(outputs[[idx], 1:], -1, 1)))
 
 show_result_pyplot(mmdet_model, TEST_IMAGE_FILE, results)

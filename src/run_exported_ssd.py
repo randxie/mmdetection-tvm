@@ -3,11 +3,11 @@ import os
 import numpy as np
 
 import tvm
+from constants import DEPLOY_WEIGHT_DIR
 from tvm.contrib import graph_runtime
-from utils import DEPLOY_WEIGHT_DIR
 
 # load exported parameters, graph def and library
-export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.tar")
+export_lib = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_lib.so")
 export_graph = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_graph.json")
 export_params = os.path.join(DEPLOY_WEIGHT_DIR, "ssd_param.params")
 
@@ -30,3 +30,4 @@ module.run()
 
 tvm_output = module.get_output(0)
 print(tvm_output)
+print("TVM output shape: ", tvm_output.shape)
