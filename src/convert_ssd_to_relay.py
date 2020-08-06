@@ -7,8 +7,10 @@ from mmdet.apis import init_detector
 from mmdet.apis import show_result_pyplot
 
 import tvm
+from tvm import rpc
 from constants import DEPLOY_WEIGHT_DIR
 from constants import ROOT_DIR
+
 from modules.traceable_ssd_module import SSD_CUSTOM_MAP
 from modules.traceable_ssd_module import TraceableSsdModule
 from tvm import relay
@@ -23,8 +25,12 @@ CHECKPOINT_FILE = os.path.join(
 # test image
 TEST_IMAGE_FILE = os.path.join(ROOT_DIR, 'test_images/demo.jpg')
 
-visualize = True
+visualize = False
 export_weight = True
+use_gpu = False
+# gpu_model = '1080ti'
+gpu_model = 'tx2'  # Jetson
+deploy_remote = True
 
 # ---------------------------------------------
 # Load mmdetection model
@@ -64,13 +70,17 @@ with torch.no_grad():
 # ---------------------------------------------
 # Build relay graph
 # ---------------------------------------------
-
-# use cuda if needed
-# backend_target = 'llvm'  # or 'llvm'
-# hardware_model = '1080'  # for Jetson, set it to "tx2"
-# target = tvm.target.create('%s -model=%s' % (backend_target, hardware_model))
-
-target = 'llvm'
+if use_gpu:
+  backend_target = 'cuda'  # or 'llvm'
+  target = tvm.target.create('%s -model=%s' % (backend_target, gpu_model))
+  ctx = tvm.gpu(0)
+else:
+  # cpu settings
+  if deploy_remote:
+    target = 'llvm -target=aarch64-linux-gnu'
+  else:
+    target = 'llvm'
+  ctx = tvm.cpu(0)
 
 with relay.build_config(opt_level=3):
   ssd_module, ssd_params = relay.optimize(ssd_module,
@@ -95,6 +105,20 @@ if export_weight:
     fo.write(relay.save_param_dict(params))
   with open(export_ssd_module, "w") as fo:
     fo.write(tvm.ir.save_json(ssd_module))
+
+if deploy_remote:
+    # The following is my environment, change this to the IP address of your target device
+    host = '108.7.74.14'
+    port = 9090
+    remote = rpc.connect(host, port)
+
+    remote.upload(export_lib)
+    lib = remote.load_module('ssd_lib.tar')
+    if use_gpu:
+        # TODO
+        ctx = remote.gpu(0)
+    else:
+        ctx = remote.cpu(0)
 
 # ------------------------------------------------------
 # Build relay graph and compare result with traced model
