@@ -80,8 +80,10 @@ public:
         tvm::runtime::PackedFunc get_output = module_->GetFunction("get_output");
         const tvm::runtime::NDArray res = get_output(0);
 
-        cv::Mat vector(128, 1, CV_32F);
-        memcpy(vector.data, res->data, 128 * 4);
+        cv::Mat vector(8732, 6, CV_32F);
+        memcpy(vector.data, res->data, 8732 * 6 * 4);
+
+        // vector = vector.reshape(6, 8732);
 
         TVMArrayFree(input);
         return vector;

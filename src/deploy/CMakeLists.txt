@@ -14,5 +14,8 @@ INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${TVM_ROOT}/include)
 INCLUDE_DIRECTORIES(${TVM_ROOT}/3rdparty/dmlc-core/include)
 INCLUDE_DIRECTORIES(${TVM_ROOT}/3rdparty/dlpack/include)
+
 add_executable(run_ssd tvm_runtime_pack.cc main.cc)
 target_link_libraries(run_ssd ${OpenCV_LIBS})
+target_link_libraries(run_ssd glog)
+target_link_libraries(run_ssd gflags)
